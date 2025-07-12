@@ -16,19 +16,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // Validate inputs
     if (!empty($name) && !empty($breed) && $age > 0 && !empty($address) && !empty($color) && $height > 0 && $weight > 0) {
-        $sql = "INSERT INTO dogs (name, breed, age, address, color, height, weight) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssissdd", $name, $breed, $age, $address, $color, $height, $weight);
         
-        if ($stmt->execute()) {
-            $success_message = "Dog information saved successfully!";
+        // Check if table exists and has proper structure
+        $check_table = $conn->query("SHOW CREATE TABLE dogs");
+        if (!$check_table) {
+            $error_message = "Database table 'dogs' does not exist. Please run the database setup script.";
         } else {
-            $error_message = "Error: " . $stmt->error;
+            $sql = "INSERT INTO dogs (name, breed, age, address, color, height, weight) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            $stmt = $conn->prepare($sql);
+            
+            if ($stmt) {
+                $stmt->bind_param("ssissdd", $name, $breed, $age, $address, $color, $height, $weight);
+                
+                if ($stmt->execute()) {
+                    $success_message = "Dog information saved successfully!";
+                    // Clear form data by redirecting
+                    header("Location: " . $_SERVER['PHP_SELF'] . "?success=1");
+                    exit();
+                } else {
+                    // Handle specific error codes
+                    $error_code = $stmt->errno;
+                    $error_msg = $stmt->error;
+                    
+                    if ($error_code == 1062) { // Duplicate entry error
+                        $error_message = "Database Error: Duplicate entry detected. Please contact administrator to reset AUTO_INCREMENT.";
+                    } else {
+                        $error_message = "Database Error: " . $error_msg . " (Code: " . $error_code . ")";
+                    }
+                }
+                $stmt->close();
+            } else {
+                $error_message = "SQL Prepare Error: " . $conn->error;
+            }
         }
-        $stmt->close();
     } else {
         $error_message = "Please fill in all fields with valid data.";
     }
+}
+
+// Check for success parameter
+if (isset($_GET['success']) && $_GET['success'] == 1) {
+    $success_message = "Dog information saved successfully!";
 }
 
 // Fetch all dogs from database
